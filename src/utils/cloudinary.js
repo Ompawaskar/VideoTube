@@ -13,6 +13,8 @@ export const uploadOnCloudinary = async (localpath) => {
         if (!localpath)
             return null;
 
+        console.log("localpath",localpath);
+
         const uploadResult = await cloudinary.uploader
             .upload(
                 localpath,
@@ -21,6 +23,8 @@ export const uploadOnCloudinary = async (localpath) => {
                 }
             )
         console.log("Cloudinary Response", uploadResult.url);
+        console.log("Upload Result",uploadResult);
+        fs.unlinkSync(localpath);
         return uploadResult;
 
     } catch (error) {

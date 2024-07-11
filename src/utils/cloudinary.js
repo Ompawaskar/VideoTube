@@ -23,7 +23,6 @@ export const uploadOnCloudinary = async (localpath) => {
                 }
             )
         console.log("Cloudinary Response", uploadResult.url);
-        console.log("Upload Result",uploadResult);
         fs.unlinkSync(localpath);
         return uploadResult;
 

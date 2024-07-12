@@ -33,5 +33,31 @@ export const uploadOnCloudinary = async (localpath) => {
 
 }
 
+export const deleteFromCloudinary = async (url) => {
+    try {
+        const public_id = url.split('/').pop().split('.')[0];
+        if (!public_id) {
+            console.log("No URL provided for deletion.");
+            return null;
+        }
+
+        const deleteResult = await cloudinary.uploader.destroy(public_id);
+
+        if (deleteResult.result !== 'ok') {
+            console.log("Could not delete resource:", deleteResult);
+            return deleteResult;
+        }
+
+        console.log("Resource deleted successfully:", deleteResult);
+        return deleteResult;
+
+    } catch (error) {
+        console.error("Error deleting resource from Cloudinary:", error);
+        throw error;
+    }
+}
+
+
+
 
 

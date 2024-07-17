@@ -244,6 +244,7 @@ export const updateFiles = asyncHandler(async (req, res) => {
 })
 
 export const getUserChannelProfile = asyncHandler(async (req, res) => {
+    console.log("Hello");
     const { username } = req.params
     if (!username?.trim())
         throw new ApiError(401, "Username Doesnt Exsist.")
@@ -311,7 +312,7 @@ export const getUserChannelProfile = asyncHandler(async (req, res) => {
 export const getUserWatchHistory = asyncHandler(async (req, res) => {
     const user = await User.aggregate([
         {
-            $match: { _id: new mongoose.Schema.Types.ObjectId(req.user._id) }
+            $match: { _id: new mongoose.Types.ObjectId(req.user._id) }
         },
         {
             $lookup: {

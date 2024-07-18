@@ -122,7 +122,15 @@ export const logoutUser = asyncHandler(async (req, res) => {
     // Clear tokens from cookies
     //Reset refreshTOken in DB
     const { _id } = req.user;
-    await User.findByIdAndUpdate(_id, { $set: { refreshToken: undefined } })
+    await User.findByIdAndUpdate(_id,
+        {
+            $unset: {
+                refreshToken: 1
+            }
+        },
+        {
+            new: true
+        })
 
     const options = {
         httpOnly: true,
@@ -336,11 +344,11 @@ export const getUserWatchHistory = asyncHandler(async (req, res) => {
                                     }
                                 },
                                 {
-                                    $addFields:{
-                                       owner: {
+                                    $addFields: {
+                                        owner: {
                                             $first: "$owner"
                                         }
-                                    }       
+                                    }
                                 }
                             ]
 
@@ -348,10 +356,10 @@ export const getUserWatchHistory = asyncHandler(async (req, res) => {
                     }
                 ]
             }
-        }   
+        }
     ])
 
-    return res.status(200).json(new ApiResponse(200,user[0].watchHistory,"Watch History fetched Successfully"))
+    return res.status(200).json(new ApiResponse(200, user[0].watchHistory, "Watch History fetched Successfully"))
 })
 
 

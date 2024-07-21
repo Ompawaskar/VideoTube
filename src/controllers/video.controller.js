@@ -4,44 +4,89 @@ import { ApiResponse } from "../utils/ApiResponse.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js"
 
-const getAllVideos = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
-    //TODO: get all videos based on query, sort, pagination
+export const getAllVideos = asyncHandler(async (req, res) => {
+    let { page = 1, limit = 10, query, sortBy = "views", sortType, userId } = req.query;
+
+    if (!query) {
+        throw new ApiError(400, "Query is required.");
+    }
+
+    if (!["views", "createdAt", "duration"].includes(sortBy)) {
+        sortBy = "createdAt";
+    }
+
+    const sortDirection = sortType === "asc" ? 1 : -1;
+
+    const aggregationPipeline = [
+        {
+            $search: {
+                index: "search",
+                text: {
+                    query,
+                    path: ['title', 'description']
+                }
+            }
+        },
+        {
+            $sort: {
+                [sortBy]: sortDirection
+            }
+        },
+        {
+            $facet: {
+                metadata: [{ $count: "total" }],
+                data: [{ $skip: (page - 1) * parseInt(limit) }, { $limit: parseInt(limit) }]
+            }
+        }
+    ];
+
+    const result = await Video.aggregate(aggregationPipeline);
+   
+    const paginatedVideos = {
+        data: result[0].data,
+        total: result[0].metadata[0]?.total || 0,
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        totalPages: Math.ceil((result[0].metadata[0]?.total || 0) / limit)
+    };
+
+    return res.status(200).json(new ApiResponse(200, paginatedVideos, "Videos fetched successfully"));
+
 })
 
 export const publishAVideo = asyncHandler(async (req, res) => {
-    const { title, description} = req.body
+    const { title, description } = req.body
     // TODO: get video, upload to cloudinary, create video
 
     let videoLocalPath = ""
     let thumbnailLocalPath = ""
 
-    if(req.files && Array.isArray(req.files.video) && req.files.video[0]){
+    if (req.files && Array.isArray(req.files.video) && req.files.video[0]) {
         videoLocalPath = req.files.video[0];
     }
 
-    if(req.files && Array.isArray(req.files.thumbnail) && req.files.thumbnail[0]){
+    if (req.files && Array.isArray(req.files.thumbnail) && req.files.thumbnail[0]) {
         thumbnailLocalPath = req.files.thumbnail[0];
     }
-    
-    if(!videoLocalPath){
-        throw new ApiError(400,"Video File Missing")
+
+    if (!videoLocalPath) {
+        throw new ApiError(400, "Video File Missing")
     }
 
-    if(!thumbnailLocalPath){
-        throw new ApiError(400,"Thumbnail File Missing")
+    if (!thumbnailLocalPath) {
+        throw new ApiError(400, "Thumbnail File Missing")
     }
 
     const videoFile = await uploadOnCloudinary(videoLocalPath.path);
     const thumbnailFile = await uploadOnCloudinary(thumbnailLocalPath.path);
 
-    console.log("VideoFile",videoFile);
+    console.log("VideoFile", videoFile);
 
-    if(!videoFile)
-        throw new ApiError(500,"Could not upload video. Please Try again later.");
+    if (!videoFile)
+        throw new ApiError(500, "Could not upload video. Please Try again later.");
 
-    if(!thumbnailFile)
-        throw new ApiError(500,"Could not upload thumbnail. Please Try again later.");
+    if (!thumbnailFile)
+        throw new ApiError(500, "Could not upload thumbnail. Please Try again later.");
 
     const video = {
         title,
@@ -54,61 +99,79 @@ export const publishAVideo = asyncHandler(async (req, res) => {
 
     const createdVideo = await Video.create(video);
 
-    console.log("Video",createdVideo);
+    console.log("Video", createdVideo);
 
-    return res.status(200).json(new ApiResponse(200,createdVideo,"Video Published Successfully!"))
+    return res.status(200).json(new ApiResponse(200, createdVideo, "Video Published Successfully!"))
 
 })
 
 export const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     //TODO: get video by id
-     const video = await Video.findById(videoId)
-     if(!video)
-        throw new ApiError(400,"Video not Found")
+    const video = await Video.findById(videoId)
+    if (!video)
+        throw new ApiError(400, "Video not Found")
 
-     return res.status(200).json(new ApiResponse(200,video,"Video Fetched Successfully."))
+    return res.status(200).json(new ApiResponse(200, video, "Video Fetched Successfully."))
 })
 
 export const updateVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     //TODO: update video details like title, description, thumbnail
-    const {title , description} = req.body
-    const thumbnailLocalPath = req.file.path
+    const { title, description } = req.body
+    const thumbnailLocalPath = req.file
 
-    if(!title || !thumbnailLocalPath || !description )
-        throw new ApiError(400,"Atleast one field required to update")
+    if (!(title || thumbnailLocalPath || description))
+        throw new ApiError(400, "Atleast one field required to update")
 
-    if(thumbnailLocalPath){
-        const thumbnail = await uploadOnCloudinary(thumbnailLocalPath)
+    let thumbnail = "";
+
+    if (thumbnailLocalPath) {
+        thumbnail = await uploadOnCloudinary(thumbnailLocalPath.path)
     }
 
-    const updatedVideo = await Video.findByIdAndUpdate(videoId,{
-        $set:{
-            title,
-            description,
-            thumbnail: thumbnailLocalPath 
-        }
-    })
-    
+    const prevVideoDetails = await Video.findById(videoId);
+    if (!prevVideoDetails)
+        throw new ApiError(404, "Video not found");
+
+    if (thumbnail)
+        await deleteFromCloudinary(prevVideoDetails.thumbnail)
+
+    prevVideoDetails.title = title ? title : prevVideoDetails.title;
+    prevVideoDetails.description = description ? description : prevVideoDetails.description;
+    prevVideoDetails.thumbnail = thumbnail ? thumbnail.url : prevVideoDetails.thumbnail
+
+    const newVideoDetails = await prevVideoDetails.save({ validateBeforeSave: false })
+
+    return res.status(200).json(new ApiResponse(200, newVideoDetails, "Changes Saved"))
 
 
 })
 
-const deleteVideo = asyncHandler(async (req, res) => {
+export const deleteVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     //TODO: delete video
     const deletedVideo = await Video.findByIdAndDelete(videoId)
-    if(!deleteVideo)
-        throw new ApiError(404,"Video not Found")
+    if (!deleteVideo)
+        throw new ApiError(404, "Video not Found")
 
     await deleteFromCloudinary(deleteVideo.videoFile)
     await deleteFromCloudinary(deleteVideo.thumbnail)
 
-    return res.status(200).json(new ApiResponse(200,deletedVideo,"Deleted Successfully"))
+    return res.status(200).json(new ApiResponse(200, deletedVideo, "Deleted Successfully"))
 
 })
 
-const togglePublishStatus = asyncHandler(async (req, res) => {
+export const togglePublishStatus = asyncHandler(async (req, res) => {
     const { videoId } = req.params
+    const oldVideo = await Video.findById(videoId)
+    if (!oldVideo)
+        throw new ApiError(404, "Video Not Found")
+
+    oldVideo.isPublished = !oldVideo.isPublished
+
+    const newVideo = await oldVideo.save({ validateBeforeSave: false })
+
+
+    return res.status(200).json(new ApiResponse(200, newVideo, "Status Updated"))
 })

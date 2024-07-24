@@ -20,11 +20,13 @@ import userRouter from './routes/user.routes.js'
 import videoRouter from './routes/video.routes.js'
 import tweetRouter from './routes/tweet.routes.js'
 import subscriptionRouter from './routes/subscriber.routes.js'
+import playlistRoutes from './routes/playlist.routes.js'
 
 
 app.use('/api/v1/users',userRouter)
 app.use('/api/v1/video',videoRouter)
 app.use('/api/v1/tweets',tweetRouter)
 app.use('/api/v1/subscription',subscriptionRouter)
+app.use('/api/v1/playlist',playlistRoutes)
 
 export { app }
